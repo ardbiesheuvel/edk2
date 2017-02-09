@@ -275,6 +275,7 @@
   MdeModulePkg/Core/Pei/PeiMain.inf
   MdeModulePkg/Core/RuntimeDxe/RuntimeDxe.inf
 
+  MdeModulePkg/Library/DxeBmDmaLib/DxeBmDmaLib.inf
   MdeModulePkg/Library/DxeCapsuleLibNull/DxeCapsuleLibNull.inf
   MdeModulePkg/Library/UefiMemoryAllocationProfileLib/UefiMemoryAllocationProfileLib.inf
   MdeModulePkg/Library/DxeCoreMemoryAllocationLib/DxeCoreMemoryAllocationLib.inf
