@@ -3,6 +3,8 @@
   PCI Root Bridge Io Protocol code.
 
 Copyright (c) 1999 - 2016, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2017, AMD Incorporated. All rights reserved.<BR>
+
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -17,7 +19,6 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "PciRootBridge.h"
 #include "PciHostResource.h"
 
-#define NO_MAPPING  (VOID *) (UINTN) -1
 
 //
 // Lookup table for increment values based on transfer widths
@@ -54,6 +55,39 @@ UINT8 mOutStride[] = {
   0, // EfiPciWidthFillUint32
   0  // EfiPciWidthFillUint64
 };
+
+
+BM_DMA_OPERATION
+ConvertDmaOperation (
+  IN     EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_OPERATION  RbOperation
+  )
+{
+  BM_DMA_OPERATION BmOperation;
+
+  switch (RbOperation) {
+  case EfiPciOperationBusMasterRead:
+  case EfiPciOperationBusMasterRead64:
+    BmOperation = DmaOperationBusMasterRead;
+    break;
+
+  case EfiPciOperationBusMasterWrite:
+  case EfiPciOperationBusMasterWrite64:
+    BmOperation = DmaOperationBusMasterWrite;
+    break;
+
+  case EfiPciOperationBusMasterCommonBuffer:
+  case EfiPciOperationBusMasterCommonBuffer64:
+    BmOperation = DmaOperationBusMasterCommonBuffer;
+    break;
+
+  default:
+    BmOperation = DmaOperationBusMasterMaximum;
+    break;
+  }
+
+  return BmOperation;
+}
+
 
 /**
   Construct the Pci Root Bridge instance.
@@ -168,7 +202,6 @@ CreateRootBridge (
     TypeMax * sizeof (EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR) + sizeof (EFI_ACPI_END_TAG_DESCRIPTOR)
     );
   ASSERT (RootBridge->ConfigBuffer != NULL);
-  InitializeListHead (&RootBridge->Maps);
 
   CopyMem (&RootBridge->Bus, &Bridge->Bus, sizeof (PCI_ROOT_BRIDGE_APERTURE));
   CopyMem (&RootBridge->Io, &Bridge->Io, sizeof (PCI_ROOT_BRIDGE_APERTURE));
@@ -1053,118 +1086,27 @@ RootBridgeIoMap (
   OUT    VOID                                       **Mapping
   )
 {
-  EFI_STATUS                                        Status;
-  PCI_ROOT_BRIDGE_INSTANCE                          *RootBridge;
-  EFI_PHYSICAL_ADDRESS                              PhysicalAddress;
-  MAP_INFO                                          *MapInfo;
-
-  if (HostAddress == NULL || NumberOfBytes == NULL || DeviceAddress == NULL ||
-      Mapping == NULL) {
-    return EFI_INVALID_PARAMETER;
-  }
-
-  //
-  // Make sure that Operation is valid
-  //
-  if ((UINT32) Operation >= EfiPciOperationMaximum) {
-    return EFI_INVALID_PARAMETER;
-  }
+  PCI_ROOT_BRIDGE_INSTANCE *RootBridge;
+  BOOLEAN                  DmaAbove4GB;
+  BM_DMA_OPERATION         BmOperation;
 
   RootBridge = ROOT_BRIDGE_FROM_THIS (This);
+  DmaAbove4GB = RootBridge->DmaAbove4G && (
+                  Operation == EfiPciOperationBusMasterRead64 ||
+                  Operation == EfiPciOperationBusMasterWrite64 ||
+                  Operation == EfiPciOperationBusMasterCommonBuffer64
+                  );
 
-  PhysicalAddress = (EFI_PHYSICAL_ADDRESS) (UINTN) HostAddress;
-  if ((!RootBridge->DmaAbove4G ||
-       (Operation != EfiPciOperationBusMasterRead64 &&
-        Operation != EfiPciOperationBusMasterWrite64 &&
-        Operation != EfiPciOperationBusMasterCommonBuffer64)) &&
-      ((PhysicalAddress + *NumberOfBytes) > SIZE_4GB)) {
+  BmOperation = ConvertDmaOperation (Operation);
 
-    //
-    // If the root bridge or the device cannot handle performing DMA above
-    // 4GB but any part of the DMA transfer being mapped is above 4GB, then
-    // map the DMA transfer to a buffer below 4GB.
-    //
-
-    if (Operation == EfiPciOperationBusMasterCommonBuffer ||
-        Operation == EfiPciOperationBusMasterCommonBuffer64) {
-      //
-      // Common Buffer operations can not be remapped.  If the common buffer
-      // if above 4GB, then it is not possible to generate a mapping, so return
-      // an error.
-      //
-      return EFI_UNSUPPORTED;
-    }
-
-    //
-    // Allocate a MAP_INFO structure to remember the mapping when Unmap() is
-    // called later.
-    //
-    MapInfo = AllocatePool (sizeof (MAP_INFO));
-    if (MapInfo == NULL) {
-      *NumberOfBytes = 0;
-      return EFI_OUT_OF_RESOURCES;
-    }
-
-    //
-    // Initialize the MAP_INFO structure
-    //
-    MapInfo->Signature         = MAP_INFO_SIGNATURE;
-    MapInfo->Operation         = Operation;
-    MapInfo->NumberOfBytes     = *NumberOfBytes;
-    MapInfo->NumberOfPages     = EFI_SIZE_TO_PAGES (MapInfo->NumberOfBytes);
-    MapInfo->HostAddress       = PhysicalAddress;
-    MapInfo->MappedHostAddress = SIZE_4GB - 1;
-
-    //
-    // Allocate a buffer below 4GB to map the transfer to.
-    //
-    Status = gBS->AllocatePages (
-                    AllocateMaxAddress,
-                    EfiBootServicesData,
-                    MapInfo->NumberOfPages,
-                    &MapInfo->MappedHostAddress
-                    );
-    if (EFI_ERROR (Status)) {
-      FreePool (MapInfo);
-      *NumberOfBytes = 0;
-      return Status;
-    }
-
-    //
-    // If this is a read operation from the Bus Master's point of view,
-    // then copy the contents of the real buffer into the mapped buffer
-    // so the Bus Master can read the contents of the real buffer.
-    //
-    if (Operation == EfiPciOperationBusMasterRead ||
-        Operation == EfiPciOperationBusMasterRead64) {
-      CopyMem (
-        (VOID *) (UINTN) MapInfo->MappedHostAddress,
-        (VOID *) (UINTN) MapInfo->HostAddress,
-        MapInfo->NumberOfBytes
-        );
-    }
-
-    InsertTailList (&RootBridge->Maps, &MapInfo->Link);
-
-    //
-    // The DeviceAddress is the address of the maped buffer below 4GB
-    //
-    *DeviceAddress = MapInfo->MappedHostAddress;
-    //
-    // Return a pointer to the MAP_INFO structure in Mapping
-    //
-    *Mapping       = MapInfo;
-  } else {
-    //
-    // If the root bridge CAN handle performing DMA above 4GB or
-    // the transfer is below 4GB, so the DeviceAddress is simply the
-    // HostAddress
-    //
-    *DeviceAddress = PhysicalAddress;
-    *Mapping       = NO_MAPPING;
-  }
-
-  return EFI_SUCCESS;
+  return BmDmaMap (
+           DmaAbove4GB,
+           BmOperation,
+           HostAddress,
+           NumberOfBytes,
+           DeviceAddress,
+           Mapping
+           );
 }
 
 /**
@@ -1191,58 +1133,7 @@ RootBridgeIoUnmap (
   IN VOID                             *Mapping
   )
 {
-  MAP_INFO                 *MapInfo;
-  LIST_ENTRY               *Link;
-  PCI_ROOT_BRIDGE_INSTANCE *RootBridge;
-
-  RootBridge = ROOT_BRIDGE_FROM_THIS (This);
-  //
-  // See if the Map() operation associated with this Unmap() required a mapping
-  // buffer. If a mapping buffer was not required, then this function simply
-  // returns EFI_SUCCESS.
-  //
-  if (Mapping == NO_MAPPING) {
-    return EFI_SUCCESS;
-  }
-
-  MapInfo = NO_MAPPING;
-  for (Link = GetFirstNode (&RootBridge->Maps)
-       ; !IsNull (&RootBridge->Maps, Link)
-       ; Link = GetNextNode (&RootBridge->Maps, Link)
-       ) {
-    MapInfo = MAP_INFO_FROM_LINK (Link);
-    if (MapInfo == Mapping) {
-      break;
-    }
-  }
-  //
-  // Mapping is not a valid value returned by Map()
-  //
-  if (MapInfo != Mapping) {
-    return EFI_INVALID_PARAMETER;
-  }
-  RemoveEntryList (&MapInfo->Link);
-
-  //
-  // If this is a write operation from the Bus Master's point of view,
-  // then copy the contents of the mapped buffer into the real buffer
-  // so the processor can read the contents of the real buffer.
-  //
-  if (MapInfo->Operation == EfiPciOperationBusMasterWrite ||
-      MapInfo->Operation == EfiPciOperationBusMasterWrite64) {
-    CopyMem (
-      (VOID *) (UINTN) MapInfo->HostAddress,
-      (VOID *) (UINTN) MapInfo->MappedHostAddress,
-      MapInfo->NumberOfBytes
-      );
-  }
-
-  //
-  // Free the mapped buffer and the MAP_INFO structure.
-  //
-  gBS->FreePages (MapInfo->MappedHostAddress, MapInfo->NumberOfPages);
-  FreePool (Mapping);
-  return EFI_SUCCESS;
+  return BmDmaUnmap (Mapping);
 }
 
 /**
@@ -1282,56 +1173,23 @@ RootBridgeIoAllocateBuffer (
   IN  UINT64                           Attributes
   )
 {
-  EFI_STATUS                Status;
-  EFI_PHYSICAL_ADDRESS      PhysicalAddress;
-  PCI_ROOT_BRIDGE_INSTANCE  *RootBridge;
-  EFI_ALLOCATE_TYPE         AllocateType;
+  PCI_ROOT_BRIDGE_INSTANCE *RootBridge;
+  BOOLEAN                  DmaAbove4GB;
 
-  //
-  // Validate Attributes
-  //
   if ((Attributes & EFI_PCI_ATTRIBUTE_INVALID_FOR_ALLOCATE_BUFFER) != 0) {
     return EFI_UNSUPPORTED;
   }
 
-  //
-  // Check for invalid inputs
-  //
-  if (HostAddress == NULL) {
-    return EFI_INVALID_PARAMETER;
-  }
-
-  //
-  // The only valid memory types are EfiBootServicesData and
-  // EfiRuntimeServicesData
-  //
-  if (MemoryType != EfiBootServicesData &&
-      MemoryType != EfiRuntimeServicesData) {
-    return EFI_INVALID_PARAMETER;
-  }
-
   RootBridge = ROOT_BRIDGE_FROM_THIS (This);
+  DmaAbove4GB = RootBridge->DmaAbove4G &&
+                  (Attributes & EFI_PCI_ATTRIBUTE_DUAL_ADDRESS_CYCLE) != 0;
 
-  AllocateType = AllocateAnyPages;
-  if (!RootBridge->DmaAbove4G ||
-      (Attributes & EFI_PCI_ATTRIBUTE_DUAL_ADDRESS_CYCLE) == 0) {
-    //
-    // Limit allocations to memory below 4GB
-    //
-    AllocateType    = AllocateMaxAddress;
-    PhysicalAddress = (EFI_PHYSICAL_ADDRESS) (SIZE_4GB - 1);
-  }
-  Status = gBS->AllocatePages (
-                  AllocateType,
-                  MemoryType,
-                  Pages,
-                  &PhysicalAddress
-                  );
-  if (!EFI_ERROR (Status)) {
-    *HostAddress = (VOID *) (UINTN) PhysicalAddress;
-  }
-
-  return Status;
+  return BmDmaAllocateBuffer (
+           DmaAbove4GB,
+           MemoryType,
+           Pages,
+           HostAddress
+           );
 }
 
 /**
@@ -1356,7 +1214,7 @@ RootBridgeIoFreeBuffer (
   OUT VOID                             *HostAddress
   )
 {
-  return gBS->FreePages ((EFI_PHYSICAL_ADDRESS) (UINTN) HostAddress, Pages);
+  return BmDmaFreeBuffer (Pages, HostAddress);
 }
 
 /**

@@ -3,6 +3,8 @@
   The PCI Root Bridge header file.
 
 Copyright (c) 1999 - 2016, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2017, AMD Incorporated. All rights reserved.<BR>
+
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -34,6 +36,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/BaseLib.h>
 #include <Library/PciSegmentLib.h>
+#include <Library/BmDmaLib.h>
 #include "PciHostResource.h"
 
 
@@ -43,17 +46,6 @@ typedef enum {
   PciOperation
 } OPERATION_TYPE;
 
-#define MAP_INFO_SIGNATURE  SIGNATURE_32 ('_', 'm', 'a', 'p')
-typedef struct {
-  UINT32                                    Signature;
-  LIST_ENTRY                                Link;
-  EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL_OPERATION Operation;
-  UINTN                                     NumberOfBytes;
-  UINTN                                     NumberOfPages;
-  EFI_PHYSICAL_ADDRESS                      HostAddress;
-  EFI_PHYSICAL_ADDRESS                      MappedHostAddress;
-} MAP_INFO;
-#define MAP_INFO_FROM_LINK(a) CR (a, MAP_INFO, Link, MAP_INFO_SIGNATURE)
 
 #define PCI_ROOT_BRIDGE_SIGNATURE SIGNATURE_32 ('_', 'p', 'r', 'b')
 
@@ -79,7 +71,6 @@ typedef struct {
   EFI_PCI_ROOT_BRIDGE_IO_PROTOCOL   RootBridgeIo;
 
   BOOLEAN                           ResourceSubmitted;
-  LIST_ENTRY                        Maps;
 } PCI_ROOT_BRIDGE_INSTANCE;
 
 #define ROOT_BRIDGE_FROM_THIS(a) CR (a, PCI_ROOT_BRIDGE_INSTANCE, RootBridgeIo, PCI_ROOT_BRIDGE_SIGNATURE)

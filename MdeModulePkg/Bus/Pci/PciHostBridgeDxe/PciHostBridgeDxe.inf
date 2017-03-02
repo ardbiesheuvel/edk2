@@ -42,6 +42,7 @@
   BaseLib
   PciSegmentLib
   PciHostBridgeLib
+  BmDmaLib
 
 [Protocols]
   gEfiMetronomeArchProtocolGuid                   ## CONSUMES
