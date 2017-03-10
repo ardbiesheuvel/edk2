@@ -67,6 +67,7 @@ LOADED_IMAGE_PRIVATE_DATA mCorePrivateImage  = {
   NULL,                       // JumpContext
   0,                          // Machine
   NULL,                       // Ebc
+  NULL,                       // Emu
   NULL,                       // RuntimeData
   NULL                        // LoadedImageDevicePath
 };
@@ -476,12 +477,23 @@ CoreLoadPeImage (
   if (!EFI_IMAGE_MACHINE_TYPE_SUPPORTED (Image->ImageContext.Machine)) {
     if (!EFI_IMAGE_MACHINE_CROSS_TYPE_SUPPORTED (Image->ImageContext.Machine)) {
       //
-      // The PE/COFF loader can support loading image types that can be executed.
-      // If we loaded an image type that we can not execute return EFI_UNSUPORTED.
+      // Locate the emulator protocol to check whether it supports this
+      // image.
       //
-      DEBUG ((EFI_D_ERROR, "Image type %s can't be loaded ", GetMachineTypeName(Image->ImageContext.Machine)));
-      DEBUG ((EFI_D_ERROR, "on %s UEFI system.\n", GetMachineTypeName(mDxeCoreImageMachineType)));
-      return EFI_UNSUPPORTED;
+      Status = CoreLocateProtocol (&gEdkiiPeCoffImageEmulatorProtocolGuid,
+                 NULL, (VOID **)&Image->Emu);
+      if (EFI_ERROR (Status) ||
+          !Image->Emu->IsImageSupported (Image->Emu,
+                                         Image->ImageContext.Machine,
+                                         Image->ImageContext.ImageType)) {
+        //
+        // The PE/COFF loader can support loading image types that can be executed.
+        // If we loaded an image type that we can not execute return EFI_UNSUPORTED.
+        //
+        DEBUG ((EFI_D_ERROR, "Image type %s can't be loaded ", GetMachineTypeName(Image->ImageContext.Machine)));
+        DEBUG ((EFI_D_ERROR, "on %s UEFI system.\n", GetMachineTypeName(mDxeCoreImageMachineType)));
+        return EFI_UNSUPPORTED;
+      }
     }
   }
 
@@ -687,6 +699,14 @@ CoreLoadPeImage (
     if (EFI_ERROR(Status)) {
       goto Done;
     }
+  } else if (Image->Emu != NULL) {
+    Status = Image->Emu->RegisterImage (Image->Emu, Image->ImageBasePage,
+                           EFI_PAGES_TO_SIZE (Image->NumberOfPages));
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_LOAD | DEBUG_ERROR,
+        "CoreLoadPeImage: Failed to load register foreign image with emulator.\n"));
+      goto Done;
+    }
   }
 
   //
@@ -870,6 +890,13 @@ CoreUnloadAndCloseImage (
     // If EBC protocol exists we must perform cleanups for this image.
     //
     Image->Ebc->UnloadImage (Image->Ebc, Image->Handle);
+  }
+
+  if (Image->Emu != NULL) {
+    //
+    // If X86 interpreter protocol exists we must unregister the image.
+    //
+    Image->Emu->UnregisterImage (Image->Emu, Image->ImageBasePage);
   }
 
   //
@@ -1609,7 +1636,7 @@ CoreStartImage (
   //
   // The image to be started must have the machine type supported by DxeCore.
   //
-  if (!EFI_IMAGE_MACHINE_TYPE_SUPPORTED (Image->Machine)) {
+  if (!EFI_IMAGE_MACHINE_TYPE_SUPPORTED (Image->Machine) && Image->Emu == NULL) {
     //
     // Do not ASSERT here, because image might be loaded via EFI_IMAGE_MACHINE_CROSS_TYPE_SUPPORTED
     // But it can not be started.

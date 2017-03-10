@@ -53,6 +53,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Protocol/TcgService.h>
 #include <Protocol/HiiPackageList.h>
 #include <Protocol/SmmBase2.h>
+#include <Protocol/PeCoffImageEmulator.h>
 #include <Guid/MemoryTypeInformation.h>
 #include <Guid/FirmwareFileSystem2.h>
 #include <Guid/FirmwareFileSystem3.h>
@@ -229,6 +230,8 @@ typedef struct {
   UINT16                      Machine;        
   /// EBC Protocol pointer
   EFI_EBC_PROTOCOL            *Ebc;           
+  /// X86 Interpreter Protocol pointer
+  EDKII_PECOFF_IMAGE_EMULATOR_PROTOCOL  *Emu;
   /// Runtime image list
   EFI_RUNTIME_IMAGE_ENTRY     *RuntimeData;   
   /// Pointer to Loaded Image Device Path Protocol
