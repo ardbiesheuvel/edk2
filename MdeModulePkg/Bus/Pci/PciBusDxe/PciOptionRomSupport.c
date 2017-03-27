@@ -678,6 +678,7 @@ ProcessOpRomImage (
   MEDIA_RELATIVE_OFFSET_RANGE_DEVICE_PATH  EfiOpRomImageNode;
   VOID                                     *Buffer;
   UINTN                                    BufferSize;
+  EDKII_PECOFF_IMAGE_EMULATOR_PROTOCOL     *PeCoffEmulator;
 
   Indicator = 0;
 
@@ -693,6 +694,7 @@ ProcessOpRomImage (
   }
   ASSERT (((EFI_PCI_EXPANSION_ROM_HEADER *) RomBarOffset)->Signature == PCI_EXPANSION_ROM_HEADER_SIGNATURE);
 
+  PeCoffEmulator = NULL;
   do {
     EfiRomHeader = (EFI_PCI_EXPANSION_ROM_HEADER *) RomBarOffset;
     if (EfiRomHeader->Signature != PCI_EXPANSION_ROM_HEADER_SIGNATURE) {
@@ -716,7 +718,19 @@ ProcessOpRomImage (
     // Skip the EFI PCI Option ROM image if its machine type is not supported
     //
     if (!EFI_IMAGE_MACHINE_TYPE_SUPPORTED (EfiRomHeader->EfiMachineType)) {
-      goto NextImage;
+      //
+      // Check whether we have a PE/COFF emulator that supports this image
+      //
+      if (PeCoffEmulator == NULL) {
+        gBS->LocateProtocol (&gEdkiiPeCoffImageEmulatorProtocolGuid, NULL,
+               (VOID **)&PeCoffEmulator);
+      }
+      if (PeCoffEmulator == NULL ||
+          !PeCoffEmulator->IsImageSupported (PeCoffEmulator,
+                             EfiRomHeader->EfiMachineType,
+                             EfiRomHeader->EfiSubsystem)) {
+        goto NextImage;
+      }
     }
 
     //
