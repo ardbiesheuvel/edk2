@@ -64,9 +64,6 @@
   gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut
 
 [Guids]
-  gEfiFileInfoGuid
-  gEfiFileSystemInfoGuid
-  gEfiFileSystemVolumeLabelInfoIdGuid
   gEfiEndOfDxeEventGroupGuid
   gRootBridgesConnectedEventGroupGuid
   gUefiShellFileGuid
@@ -76,6 +73,7 @@
   gEfiFirmwareVolume2ProtocolGuid
   gEfiGraphicsOutputProtocolGuid
   gEfiLoadedImageProtocolGuid
+  gEfiLoadFileProtocolGuid
+  gEfiLoadFile2ProtocolGuid
   gEfiPciRootBridgeIoProtocolGuid
-  gEfiSimpleFileSystemProtocolGuid
   gVirtioDeviceProtocolGuid
