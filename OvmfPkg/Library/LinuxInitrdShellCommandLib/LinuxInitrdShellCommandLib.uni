@@ -1,0 +1,37 @@
+// /**
+//
+// Copyright (c) 2020, Arm, Ltd. All rights reserved.<BR>
+// SPDX-License-Identifier: BSD-2-Clause-Patent
+//
+// Module Name:
+//
+// LinuxInitrdShellCommandLib.uni
+//
+// Abstract:
+//
+// String definitions for 'initrd' UEFI Shell command
+//
+// **/
+
+/=#
+
+#langdef   en-US "english"
+
+#string STR_GEN_PROBLEM           #language en-US "%H%s%N: Unknown flag - '%H%s%N'\r\n"
+#string STR_GEN_TOO_MANY          #language en-US "%H%s%N: Too many arguments.\r\n"
+#string STR_GEN_TOO_FEW           #language en-US "%H%s%N: Too few arguments.\r\n"
+#string STR_GEN_FIND_FAIL         #language en-US "%H%s%N: File not found - '%H%s%N'\r\n"
+#string STR_GEN_FILE_OPEN_FAIL    #language en-US "%H%s%N: Cannot open file - '%H%s%N'\r\n"
+
+#string STR_GET_HELP_INITRD       #language en-US ""
+".TH vol 0 "Registers or unregisters a file as Linux initrd."\r\n"
+".SH NAME\r\n"
+"Registers or unregisters a file as Linux initrd.\r\n"
+".SH SYNOPSIS\r\n"
+" \r\n"
+"initrd <FileName>\r\n"
+"initrd -u\r\n"
+".SH OPTIONS\r\n"
+" \r\n"
+"  FileName    - Specifies a file to register as initrd.\r\n"
+"  -u          - Unregisters any previously registered initrd files.\r\n"
