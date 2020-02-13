@@ -49,6 +49,7 @@
   QemuFwCfgLib
   QemuFwCfgS3Lib
   LoadLinuxLib
+  PeCoffLib
   QemuBootOrderLib
   ReportStatusCodeLib
   UefiLib
