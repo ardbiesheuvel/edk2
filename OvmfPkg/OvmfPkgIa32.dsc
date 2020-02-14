@@ -916,3 +916,5 @@
       NULL|SecurityPkg/Library/HashInstanceLibSm3/HashInstanceLibSm3.inf
   }
 !endif
+
+  OvmfPkg/CompatImageLoaderDxe/CompatImageLoaderDxe.inf

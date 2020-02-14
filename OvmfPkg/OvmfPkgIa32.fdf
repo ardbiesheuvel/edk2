@@ -350,6 +350,8 @@ INF  SecurityPkg/Tcg/Tcg2Config/Tcg2ConfigDxe.inf
 !endif
 !endif
 
+INF OvmfPkg/CompatImageLoaderDxe/CompatImageLoaderDxe.inf
+
 ################################################################################
 
 [FV.FVMAIN_COMPACT]
