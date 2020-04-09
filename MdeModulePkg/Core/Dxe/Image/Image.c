@@ -564,13 +564,10 @@ CoreLoadPeImage (
   IN BOOLEAN                     BootPolicy,
   IN VOID                        *Pe32Handle,
   IN LOADED_IMAGE_PRIVATE_DATA   *Image,
-  IN EFI_PHYSICAL_ADDRESS        DstBuffer    OPTIONAL,
-  OUT EFI_PHYSICAL_ADDRESS       *EntryPoint  OPTIONAL,
   IN  UINT32                     Attribute
   )
 {
   EFI_STATUS                Status;
-  BOOLEAN                   DstBufAlocated;
   UINTN                     Size;
 
   ZeroMem (&Image->ImageContext, sizeof (Image->ImageContext));
@@ -619,96 +616,62 @@ CoreLoadPeImage (
     return EFI_UNSUPPORTED;
   }
 
+  if (Image->ImageContext.SectionAlignment > EFI_PAGE_SIZE) {
+    Size = (UINTN)Image->ImageContext.ImageSize + Image->ImageContext.SectionAlignment;
+  } else {
+    Size = (UINTN)Image->ImageContext.ImageSize;
+  }
+
+  Image->NumberOfPages = EFI_SIZE_TO_PAGES (Size);
+
   //
-  // Allocate memory of the correct memory type aligned on the required image boundary
+  // If the image relocations have not been stripped, then load at any address.
+  // Otherwise load at the address at which it was linked.
   //
-  DstBufAlocated = FALSE;
-  if (DstBuffer == 0) {
-    //
-    // Allocate Destination Buffer as caller did not pass it in
-    //
+  // Memory below 1MB should be treated reserved for CSM and there should be
+  // no modules whose preferred load addresses are below 1MB.
+  //
+  Status = EFI_OUT_OF_RESOURCES;
+  //
+  // If Loading Module At Fixed Address feature is enabled, the module should be loaded to
+  // a specified address.
+  //
+  if (PcdGet64(PcdLoadModuleAtFixAddressEnable) != 0 ) {
+    Status = GetPeCoffImageFixLoadingAssignedAddress (&(Image->ImageContext));
 
-    if (Image->ImageContext.SectionAlignment > EFI_PAGE_SIZE) {
-      Size = (UINTN)Image->ImageContext.ImageSize + Image->ImageContext.SectionAlignment;
-    } else {
-      Size = (UINTN)Image->ImageContext.ImageSize;
-    }
+    if (EFI_ERROR (Status))  {
+        //
+        // If the code memory is not ready, invoke CoreAllocatePage with AllocateAnyPages to load the driver.
+        //
+        DEBUG ((EFI_D_INFO|EFI_D_LOAD, "LOADING MODULE FIXED ERROR: Loading module at fixed address failed since specified memory is not available.\n"));
 
-    Image->NumberOfPages = EFI_SIZE_TO_PAGES (Size);
-
-    //
-    // If the image relocations have not been stripped, then load at any address.
-    // Otherwise load at the address at which it was linked.
-    //
-    // Memory below 1MB should be treated reserved for CSM and there should be
-    // no modules whose preferred load addresses are below 1MB.
-    //
-    Status = EFI_OUT_OF_RESOURCES;
-    //
-    // If Loading Module At Fixed Address feature is enabled, the module should be loaded to
-    // a specified address.
-    //
-    if (PcdGet64(PcdLoadModuleAtFixAddressEnable) != 0 ) {
-      Status = GetPeCoffImageFixLoadingAssignedAddress (&(Image->ImageContext));
-
-      if (EFI_ERROR (Status))  {
-          //
-          // If the code memory is not ready, invoke CoreAllocatePage with AllocateAnyPages to load the driver.
-          //
-          DEBUG ((EFI_D_INFO|EFI_D_LOAD, "LOADING MODULE FIXED ERROR: Loading module at fixed address failed since specified memory is not available.\n"));
-
-          Status = CoreAllocatePages (
-                     AllocateAnyPages,
-                     (EFI_MEMORY_TYPE) (Image->ImageContext.ImageCodeMemoryType),
-                     Image->NumberOfPages,
-                     &Image->ImageContext.ImageAddress
-                     );
-      }
-    } else {
-      if (Image->ImageContext.ImageAddress >= 0x100000 || Image->ImageContext.RelocationsStripped) {
-        Status = CoreAllocatePages (
-                   AllocateAddress,
-                   (EFI_MEMORY_TYPE) (Image->ImageContext.ImageCodeMemoryType),
-                   Image->NumberOfPages,
-                   &Image->ImageContext.ImageAddress
-                   );
-      }
-      if (EFI_ERROR (Status) && !Image->ImageContext.RelocationsStripped) {
         Status = CoreAllocatePages (
                    AllocateAnyPages,
                    (EFI_MEMORY_TYPE) (Image->ImageContext.ImageCodeMemoryType),
                    Image->NumberOfPages,
                    &Image->ImageContext.ImageAddress
                    );
-      }
     }
-    if (EFI_ERROR (Status)) {
-      return Status;
-    }
-    DstBufAlocated = TRUE;
   } else {
-    //
-    // Caller provided the destination buffer
-    //
-
-    if (Image->ImageContext.RelocationsStripped && (Image->ImageContext.ImageAddress != DstBuffer)) {
-      //
-      // If the image relocations were stripped, and the caller provided a
-      // destination buffer address that does not match the address that the
-      // image is linked at, then the image cannot be loaded.
-      //
-      return EFI_INVALID_PARAMETER;
+    if (Image->ImageContext.ImageAddress >= 0x100000 || Image->ImageContext.RelocationsStripped) {
+      Status = CoreAllocatePages (
+                 AllocateAddress,
+                 (EFI_MEMORY_TYPE) (Image->ImageContext.ImageCodeMemoryType),
+                 Image->NumberOfPages,
+                 &Image->ImageContext.ImageAddress
+                 );
     }
-
-    if (Image->NumberOfPages != 0 &&
-        Image->NumberOfPages <
-        (EFI_SIZE_TO_PAGES ((UINTN)Image->ImageContext.ImageSize + Image->ImageContext.SectionAlignment))) {
-      Image->NumberOfPages = EFI_SIZE_TO_PAGES ((UINTN)Image->ImageContext.ImageSize + Image->ImageContext.SectionAlignment);
-      return EFI_BUFFER_TOO_SMALL;
+    if (EFI_ERROR (Status) && !Image->ImageContext.RelocationsStripped) {
+      Status = CoreAllocatePages (
+                 AllocateAnyPages,
+                 (EFI_MEMORY_TYPE) (Image->ImageContext.ImageCodeMemoryType),
+                 Image->NumberOfPages,
+                 &Image->ImageContext.ImageAddress
+                 );
     }
-
-    Image->NumberOfPages = EFI_SIZE_TO_PAGES ((UINTN)Image->ImageContext.ImageSize + Image->ImageContext.SectionAlignment);
-    Image->ImageContext.ImageAddress = DstBuffer;
+  }
+  if (EFI_ERROR (Status)) {
+    return Status;
   }
 
   Image->ImageBasePage = Image->ImageContext.ImageAddress;
@@ -791,13 +754,6 @@ CoreLoadPeImage (
   }
 
   //
-  // Fill in the entry point of the image if it is available
-  //
-  if (EntryPoint != NULL) {
-    *EntryPoint = Image->ImageContext.EntryPoint;
-  }
-
-  //
   // Print the load address and the PDB file name if it is available
   //
 
@@ -861,11 +817,9 @@ Done:
   // Free memory.
   //
 
-  if (DstBufAlocated) {
-    CoreFreePages (Image->ImageContext.ImageAddress, Image->NumberOfPages);
-    Image->ImageContext.ImageAddress = 0;
-    Image->ImageBasePage = 0;
-  }
+  CoreFreePages (Image->ImageContext.ImageAddress, Image->NumberOfPages);
+  Image->ImageContext.ImageAddress = 0;
+  Image->ImageBasePage = 0;
 
   if (Image->ImageContext.FixupData != NULL) {
     CoreFreePool (Image->ImageContext.FixupData);
@@ -920,8 +874,7 @@ CoreLoadedImageInfo (
 STATIC
 VOID
 CoreUnloadAndCloseImage (
-  IN LOADED_IMAGE_PRIVATE_DATA  *Image,
-  IN BOOLEAN                    FreePage
+  IN LOADED_IMAGE_PRIVATE_DATA  *Image
   )
 {
   EFI_STATUS                          Status;
@@ -1047,7 +1000,7 @@ CoreUnloadAndCloseImage (
   //
   // Free the Image from memory
   //
-  if ((Image->ImageBasePage != 0) && FreePage) {
+  if ((Image->ImageBasePage != 0)) {
     CoreFreePages (Image->ImageBasePage, Image->NumberOfPages);
   }
 
@@ -1122,10 +1075,7 @@ CoreLoadImageCommon (
   IN  EFI_DEVICE_PATH_PROTOCOL         *FilePath,
   IN  VOID                             *SourceBuffer       OPTIONAL,
   IN  UINTN                            SourceSize,
-  IN  EFI_PHYSICAL_ADDRESS             DstBuffer           OPTIONAL,
-  IN OUT UINTN                         *NumberOfPages      OPTIONAL,
   OUT EFI_HANDLE                       *ImageHandle,
-  OUT EFI_PHYSICAL_ADDRESS             *EntryPoint         OPTIONAL,
   IN  UINT32                           Attribute
   )
 {
@@ -1330,12 +1280,7 @@ CoreLoadImageCommon (
   Image->Info.FilePath     = DuplicateDevicePath (FilePath);
   Image->Info.ParentHandle = ParentImageHandle;
 
-
-  if (NumberOfPages != NULL) {
-    Image->NumberOfPages = *NumberOfPages ;
-  } else {
-    Image->NumberOfPages = 0 ;
-  }
+  Image->NumberOfPages = 0 ;
 
   //
   // Install the protocol interfaces for this image
@@ -1355,18 +1300,9 @@ CoreLoadImageCommon (
   //
   // Load the image.  If EntryPoint is Null, it will not be set.
   //
-  Status = CoreLoadPeImage (BootPolicy, &FHand, Image, DstBuffer, EntryPoint, Attribute);
+  Status = CoreLoadPeImage (BootPolicy, &FHand, Image, Attribute);
   if (EFI_ERROR (Status)) {
-    if ((Status == EFI_BUFFER_TOO_SMALL) || (Status == EFI_OUT_OF_RESOURCES)) {
-      if (NumberOfPages != NULL) {
-        *NumberOfPages = Image->NumberOfPages;
-      }
-    }
     goto Done;
-  }
-
-  if (NumberOfPages != NULL) {
-    *NumberOfPages = Image->NumberOfPages;
   }
 
   //
@@ -1448,7 +1384,7 @@ Done:
   //
   if (EFI_ERROR (Status)) {
     if (Image != NULL) {
-      CoreUnloadAndCloseImage (Image, (BOOLEAN)(DstBuffer == 0));
+      CoreUnloadAndCloseImage (Image);
       Image = NULL;
     }
   } else if (EFI_ERROR (SecurityStatus)) {
@@ -1524,10 +1460,7 @@ CoreLoadImage (
              FilePath,
              SourceBuffer,
              SourceSize,
-             (EFI_PHYSICAL_ADDRESS) (UINTN) NULL,
-             NULL,
              ImageHandle,
-             NULL,
              EFI_LOAD_PE_IMAGE_ATTRIBUTE_RUNTIME_REGISTRATION | EFI_LOAD_PE_IMAGE_ATTRIBUTE_DEBUG_IMAGE_INFO_TABLE_REGISTRATION
              );
 
@@ -1744,7 +1677,7 @@ CoreStartImage (
   // unload it
   //
   if (EFI_ERROR (Image->Status) || Image->Type == EFI_IMAGE_SUBSYSTEM_EFI_APPLICATION) {
-    CoreUnloadAndCloseImage (Image, TRUE);
+    CoreUnloadAndCloseImage (Image);
     //
     // ImageHandle may be invalid after the image is unloaded, so use NULL handle to record perf log.
     //
@@ -1809,7 +1742,7 @@ CoreExit (
     //
     // The image has not been started so just free its resources
     //
-    CoreUnloadAndCloseImage (Image, TRUE);
+    CoreUnloadAndCloseImage (Image);
     Status = EFI_SUCCESS;
     goto Done;
   }
@@ -1911,7 +1844,7 @@ CoreUnloadImage (
     //
     // if the Image was not started or Unloaded O.K. then clean up
     //
-    CoreUnloadAndCloseImage (Image, TRUE);
+    CoreUnloadAndCloseImage (Image);
   }
 
 Done:
