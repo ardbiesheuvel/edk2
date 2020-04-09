@@ -86,6 +86,7 @@ GLOBAL_REMOVE_IF_UNREFERENCED MACHINE_TYPE_INFO  mMachineTypeInfo[] = {
 
 UINT16 mDxeCoreImageMachineType = 0;
 
+#ifndef MDEPKG_NDEBUG
 /**
  Return machine type name.
 
@@ -93,6 +94,7 @@ UINT16 mDxeCoreImageMachineType = 0;
 
  @return machine type name
 **/
+STATIC
 CHAR16 *
 GetMachineTypeName (
   UINT16 MachineType
@@ -108,6 +110,7 @@ GetMachineTypeName (
 
   return L"<Unknown>";
 }
+#endif
 
 /**
   Notification event handler registered by CoreInitializeImageServices () to
@@ -286,6 +289,7 @@ CoreInitializeImageServices (
                                  into buffer.
 
 **/
+STATIC
 EFI_STATUS
 EFIAPI
 CoreReadImageFile (
@@ -334,6 +338,7 @@ CoreReadImageFile (
   @retval EFI_SUCCESS              The memory range the image will be loaded in is available
   @retval EFI_NOT_FOUND            The memory range the image will be loaded in is not available
 **/
+STATIC
 EFI_STATUS
 CheckAndMarkFixLoadingMemoryUsageBitMap (
   IN  EFI_PHYSICAL_ADDRESS          ImageBase,
@@ -407,6 +412,7 @@ CheckAndMarkFixLoadingMemoryUsageBitMap (
   @retval EFI_NOT_FOUND             The image has no assigned fixed loading address.
 
 **/
+STATIC
 EFI_STATUS
 GetPeCoffImageFixLoadingAssignedAddress(
   IN OUT PE_COFF_LOADER_IMAGE_CONTEXT  *ImageContext
@@ -552,6 +558,7 @@ CoreIsImageTypeSupported (
   @retval EFI_BUFFER_TOO_SMALL    Buffer for image is too small
 
 **/
+STATIC
 EFI_STATUS
 CoreLoadPeImage (
   IN BOOLEAN                     BootPolicy,
@@ -877,6 +884,7 @@ Done:
   @return Return the image private data associated with ImageHandle.
 
 **/
+STATIC
 LOADED_IMAGE_PRIVATE_DATA *
 CoreLoadedImageInfo (
   IN EFI_HANDLE  ImageHandle
@@ -909,6 +917,7 @@ CoreLoadedImageInfo (
   @param  FreePage                Free allocated pages
 
 **/
+STATIC
 VOID
 CoreUnloadAndCloseImage (
   IN LOADED_IMAGE_PRIVATE_DATA  *Image,
@@ -1105,6 +1114,7 @@ CoreUnloadAndCloseImage (
                                   platform policy specifies that the image should not be started.
 
 **/
+STATIC
 EFI_STATUS
 CoreLoadImageCommon (
   IN  BOOLEAN                          BootPolicy,
