@@ -12,6 +12,8 @@
 
 SECTIONS {
 
+  PROVIDE(ElfImageBase = .);
+
   /*
    * The PE/COFF binary consists of DOS and PE/COFF headers, and a sequence of
    * section headers adding up to PECOFF_HEADER_SIZE bytes (which differs
