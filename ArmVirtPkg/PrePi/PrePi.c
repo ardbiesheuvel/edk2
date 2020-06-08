@@ -9,6 +9,7 @@
 #include <PiPei.h>
 #include <Pi/PiBootMode.h>
 
+#include <Library/PeCoffLib.h>
 #include <Library/PrePiLib.h>
 #include <Library/PrintLib.h>
 #include <Library/PrePiHobListPointerLib.h>
@@ -127,4 +128,24 @@ CEntryPoint (
 
   // DXE Core should always load and never return
   ASSERT (FALSE);
+}
+
+VOID
+RelocatePeCoffImage (
+  IN  UINTN                     ImageBase,
+  IN  PE_COFF_LOADER_READ_FILE  ImageRead
+  )
+{
+  PE_COFF_LOADER_IMAGE_CONTEXT  ImageContext;
+
+  ZeroMem (&ImageContext, sizeof ImageContext);
+
+  ImageContext.Handle       = (EFI_HANDLE)ImageBase;
+  ImageContext.ImageRead    = ImageRead;
+  PeCoffLoaderGetImageInfo (&ImageContext);
+
+  if (ImageContext.ImageAddress != ImageBase) {
+    ImageContext.ImageAddress = ImageBase;
+    PeCoffLoaderRelocateImage (&ImageContext);
+  }
 }
