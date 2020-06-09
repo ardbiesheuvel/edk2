@@ -225,6 +225,7 @@ _ModuleEntryPoint (
   VOID                                    *HobStart;
   VOID                                    *TeData;
   UINTN                                   TeDataSize;
+  EFI_PHYSICAL_ADDRESS                    ImageBase;
 
   // Get Secure Partition Manager Version Information
   Status = GetSpmVersion ();
@@ -253,6 +254,7 @@ _ModuleEntryPoint (
   Status = GetStandaloneMmCorePeCoffSections (
              TeData,
              &ImageContext,
+             &ImageBase,
              &SectionHeaderOffset,
              &NumberOfSections
              );
@@ -261,10 +263,14 @@ _ModuleEntryPoint (
     goto finish;
   }
 
+  ImageBase -= ImageContext.ImageAddress;
+  ImageBase += (UINTN)TeData;
+
   // Update the memory access permissions of individual sections in the
   // Standalone MM core module
   Status = UpdateMmFoundationPeCoffPermissions (
              &ImageContext,
+             ImageBase,
              SectionHeaderOffset,
              NumberOfSections,
              ArmSetMemoryRegionNoExec,
@@ -274,6 +280,12 @@ _ModuleEntryPoint (
 
   if (EFI_ERROR (Status)) {
     goto finish;
+  }
+
+  if (ImageContext.ImageAddress != (UINTN)TeData) {
+    ImageContext.ImageAddress = (UINTN)TeData;
+    ArmClearMemoryRegionReadOnly (ImageBase, SIZE_4KB);
+    PeCoffLoaderRelocateImage (&ImageContext);
   }
 
   //

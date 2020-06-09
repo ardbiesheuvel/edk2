@@ -82,6 +82,7 @@ EFI_STATUS
 EFIAPI
 UpdateMmFoundationPeCoffPermissions (
   IN  CONST PE_COFF_LOADER_IMAGE_CONTEXT      *ImageContext,
+  IN  EFI_PHYSICAL_ADDRESS                    ImageBase,
   IN  UINT32                                  SectionHeaderOffset,
   IN  CONST  UINT16                           NumberOfSections,
   IN  REGION_PERMISSION_UPDATE_FUNC           TextUpdater,
@@ -107,6 +108,7 @@ EFIAPI
 GetStandaloneMmCorePeCoffSections (
   IN        VOID                            *TeData,
   IN  OUT   PE_COFF_LOADER_IMAGE_CONTEXT    *ImageContext,
+      OUT   EFI_PHYSICAL_ADDRESS            *ImageBase,
   IN  OUT   UINT32                          *SectionHeaderOffset,
   IN  OUT   UINT16                          *NumberOfSections
   );
