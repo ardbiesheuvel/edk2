@@ -105,6 +105,12 @@ typedef enum {
 #define EFI_MEMORY_CPU_CRYPTO       0x0000000000080000ULL
 
 //
+// Any executable code residing in the memory region was built with branch
+// tracking annotations, and should therefore be mapped accordingly.
+//
+#define EFI_MEMORY_BT               0x0000000000100000ULL
+
+//
 // Runtime memory attribute
 //
 #define EFI_MEMORY_RUNTIME          0x8000000000000000ULL
