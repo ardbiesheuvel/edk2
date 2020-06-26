@@ -715,4 +715,10 @@ ArmGetPhysicalAddressBits (
   VOID
   );
 
+BOOLEAN
+EFIAPI
+ArmCpuSupportsBti (
+  VOID
+  );
+
 #endif // __ARM_LIB__

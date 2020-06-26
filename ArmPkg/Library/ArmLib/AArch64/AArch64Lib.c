@@ -71,3 +71,22 @@ ArmCleanDataCache (
   ArmDataSynchronizationBarrier ();
   AArch64DataCacheOperation (ArmCleanDataCacheEntryBySetWay);
 }
+
+BOOLEAN
+EFIAPI
+ArmCpuSupportsBti (
+  VOID
+  )
+{
+  //
+  // AArch64 feature fields are signed 4-bit quantities, where incremental
+  // functionality is only implied by positive values. E.g., 0x2 augments
+  // 0x1, but anything beyond 0x7 is undefined.
+  //
+  switch (ArmReadIdPfr1 () & AARCH64_PFR1_BT) {
+  case 0x1 ... 0x7:
+    return TRUE;
+  default:
+    return FALSE;
+  }
+}
