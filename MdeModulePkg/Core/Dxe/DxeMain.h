@@ -242,6 +242,7 @@ typedef struct {
   LIST_ENTRY             Link;
   EFI_PHYSICAL_ADDRESS   CodeSegmentBase;
   UINT64                 CodeSegmentSize;
+  UINT32                 Characteristics;
 } IMAGE_PROPERTIES_RECORD_CODE_SECTION;
 
 #define IMAGE_PROPERTIES_RECORD_SIGNATURE SIGNATURE_32 ('I','P','R','D')

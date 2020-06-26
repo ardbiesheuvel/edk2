@@ -43,7 +43,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include "Mem/HeapGuard.h"
 
 #define CACHE_ATTRIBUTE_MASK   (EFI_MEMORY_UC | EFI_MEMORY_WC | EFI_MEMORY_WT | EFI_MEMORY_WB | EFI_MEMORY_UCE | EFI_MEMORY_WP)
-#define MEMORY_ATTRIBUTE_MASK  (EFI_MEMORY_RP | EFI_MEMORY_XP | EFI_MEMORY_RO)
+#define MEMORY_ATTRIBUTE_MASK  (EFI_MEMORY_RP | EFI_MEMORY_XP | EFI_MEMORY_RO | EFI_MEMORY_BT)
 
 //
 // Image type definitions
@@ -279,7 +279,8 @@ SetUefiImageProtectionAttributes (
     SetUefiImageMemoryAttributes (
       ImageRecordCodeSection->CodeSegmentBase,
       ImageRecordCodeSection->CodeSegmentSize,
-      EFI_MEMORY_RO
+      EFI_MEMORY_RO | ((ImageRecordCodeSection->Characteristics &
+                        EFI_IMAGE_SCN_MEM_BTT) ? EFI_MEMORY_BT : 0)
       );
     CurrentBase = ImageRecordCodeSection->CodeSegmentBase + ImageRecordCodeSection->CodeSegmentSize;
   }
@@ -529,6 +530,7 @@ ProtectUefiImage (
 
       ImageRecordCodeSection->CodeSegmentBase = (UINTN)ImageAddress + Section[Index].VirtualAddress;
       ImageRecordCodeSection->CodeSegmentSize = ALIGN_VALUE(Section[Index].SizeOfRawData, SectionAlignment);
+      ImageRecordCodeSection->Characteristics = Section[Index].Characteristics;
 
       DEBUG ((DEBUG_VERBOSE, "ImageCode: 0x%016lx - 0x%016lx\n", ImageRecordCodeSection->CodeSegmentBase, ImageRecordCodeSection->CodeSegmentSize));
 
