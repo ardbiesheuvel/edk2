@@ -359,6 +359,10 @@ GcdAttributeToPageAttribute (
     PageAttributes |= TT_AP_RO_RO;
   }
 
+  if (ArmCpuSupportsBti () && (GcdAttributes & EFI_MEMORY_BT) != 0) {
+    PageAttributes |= TT_GP;
+  }
+
   return PageAttributes | TT_AF;
 }
 

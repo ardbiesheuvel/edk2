@@ -291,6 +291,10 @@ EfiAttributeToArmAttribute (
     ArmAttributes |= TT_PXN_MASK;
   }
 
+  if (ArmCpuSupportsBti () && (EfiAttributes & EFI_MEMORY_BT) != 0) {
+    ArmAttributes |= TT_GP;
+  }
+
   return ArmAttributes;
 }
 
