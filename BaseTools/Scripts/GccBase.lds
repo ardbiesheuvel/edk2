@@ -65,6 +65,13 @@ SECTIONS {
    */
   .build-id (INFO) : { *(.note.gnu.build-id) }
 
+  /*
+   * Retain .note.gnu.property sections so they can be accessed by GenFw to
+   * take their contents into account, e.g., for branch tracking annotations
+   * on code sections.
+   */
+  .note.gnu.property (INFO) : { *(.note.gnu.property) }
+
   /DISCARD/ : {
     *(.note.GNU-stack)
     *(.gnu_debuglink)
