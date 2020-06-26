@@ -328,6 +328,7 @@ typedef struct {
 
 #define EFI_IMAGE_SCN_LNK_OTHER               0x00000100  // Reserved.
 #define EFI_IMAGE_SCN_LNK_INFO                0x00000200  // Section contains comments or some other type of information.
+#define EFI_IMAGE_SCN_MEM_BTT                 0x00000400
 #define EFI_IMAGE_SCN_LNK_REMOVE              0x00000800  // Section contents will not become part of image.
 #define EFI_IMAGE_SCN_LNK_COMDAT              0x00001000
 

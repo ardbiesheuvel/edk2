@@ -130,6 +130,8 @@ STATIC UINT8       *mRiscVPass1Targ = NULL;
 STATIC Elf_Shdr    *mRiscVPass1Sym = NULL;
 STATIC Elf64_Half  mRiscVPass1SymSecIndex = 0;
 
+STATIC BOOLEAN    mImageHasBranchTracking = FALSE;
+
 //
 // Initialization Function
 //
@@ -298,6 +300,18 @@ FindStrtabShdr (
     }
   }
   return NULL;
+}
+
+STATIC
+BOOLEAN
+IsNoteGnuPropertyShdr (
+  Elf_Shdr *Shdr
+  )
+{
+  Elf_Shdr *Namedr = GetShdrByIndex(mEhdr->e_shstrndx);
+
+  return (BOOLEAN) (strcmp((CHAR8*)mEhdr + Namedr->sh_offset + Shdr->sh_name,
+                           ".note.gnu.property") == 0);
 }
 
 STATIC
@@ -810,6 +824,50 @@ ScanSections64 (
 
   mRelocOffset = mCoffOffset;
 
+  for (i = 0; i < mEhdr->e_shnum; i++) {
+    NT_GNU_PROPERTY_TYPE0 *Property;
+    NT_GNU_PROPERTY *PropEntry;
+    Elf_Shdr *shdr = GetShdrByIndex(i);
+    UINT32 PropType;
+    UINT32 PropMask;
+
+    if (IsNoteGnuPropertyShdr (shdr)) {
+      //
+      // The image has a GNU property section that describes additional
+      // properties of the image. Both X64 and AArch64 use this to annotate
+      // ELF binaries as having been emitted with branch target identifier
+      // instructions.
+      //
+      Property = (NT_GNU_PROPERTY_TYPE0 *)((UINT8 *)mEhdr + shdr->sh_offset);
+
+      if (Property->NameSize == sizeof Property->Name &&
+          (strcmp (Property->Name, "GNU") == 0) &&
+          Property->Type == NT_GNU_PROPERTY_TYPE_0) {
+        if (mEhdr->e_machine == EM_X86_64) {
+          PropType = GNU_PROPERTY_X86_FEATURE_1_AND;
+          PropMask = GNU_PROPERTY_X86_FEATURE_1_IBT;
+        } else if (mEhdr->e_machine == EM_AARCH64) {
+          PropType = GNU_PROPERTY_AARCH64_FEATURE_1_AND;
+          PropMask = GNU_PROPERTY_AARCH64_FEATURE_1_BTI;
+        } else {
+          break;
+        }
+
+        for (PropEntry = Property->Properties;
+             (UINTN)PropEntry - (UINTN)Property->Properties < Property->DescSize;
+             PropEntry = (NT_GNU_PROPERTY *)((UINTN)&PropEntry[1] - sizeof(PropEntry->Data) + PropEntry->DataSize))
+        {
+          if (PropEntry->Type == PropType &&
+              PropEntry->DataSize == sizeof (UINT32) &&
+              (*(UINT32 *)PropEntry->Data & PropMask) != 0) {
+            mImageHasBranchTracking = TRUE;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   //
   // Allocate base Coff file.  Will be expanded later for relocations.
   //
@@ -884,7 +942,9 @@ ScanSections64 (
     CreateSectionHeader (".text", mTextOffset, mDataOffset - mTextOffset,
             EFI_IMAGE_SCN_CNT_CODE
             | EFI_IMAGE_SCN_MEM_EXECUTE
-            | EFI_IMAGE_SCN_MEM_READ);
+            | EFI_IMAGE_SCN_MEM_READ
+            | (mImageHasBranchTracking ? EFI_IMAGE_SCN_MEM_BTT : 0)
+            );
   } else {
     // Don't make a section of size 0.
     NtHdr->Pe32Plus.FileHeader.NumberOfSections--;
