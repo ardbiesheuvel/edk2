@@ -193,7 +193,7 @@ InstallMemoryAttributesTable (
     case EfiRuntimeServicesCode:
     case EfiRuntimeServicesData:
       CopyMem (MemoryAttributesEntry, MemoryMap, DescriptorSize);
-      MemoryAttributesEntry->Attribute &= (EFI_MEMORY_RO|EFI_MEMORY_XP|EFI_MEMORY_RUNTIME);
+      MemoryAttributesEntry->Attribute &= (EFI_MEMORY_RO|EFI_MEMORY_XP|EFI_MEMORY_BT|EFI_MEMORY_RUNTIME);
       DEBUG ((EFI_D_VERBOSE, "Entry (0x%x)\n", MemoryAttributesEntry));
       DEBUG ((EFI_D_VERBOSE, "  Type              - 0x%x\n", MemoryAttributesEntry->Type));
       DEBUG ((EFI_D_VERBOSE, "  PhysicalStart     - 0x%016lx\n", MemoryAttributesEntry->PhysicalStart));
@@ -636,6 +636,9 @@ SetNewRecord (
       NewRecord->VirtualStart  = 0;
       NewRecord->NumberOfPages = EfiSizeToPages(ImageRecordCodeSection->CodeSegmentSize);
       NewRecord->Attribute     = (TempRecord.Attribute & (~EFI_MEMORY_XP)) | EFI_MEMORY_RO;
+      if (ImageRecordCodeSection->Characteristics & EFI_IMAGE_SCN_MEM_BTT) {
+        NewRecord->Attribute |= EFI_MEMORY_BT;
+      }
       if (NewRecord->NumberOfPages != 0) {
         NewRecord = NEXT_MEMORY_DESCRIPTOR (NewRecord, DescriptorSize);
         NewRecordCount ++;
@@ -1061,14 +1064,17 @@ SwapImageRecordCodeSection (
 {
   IMAGE_PROPERTIES_RECORD_CODE_SECTION      TempImageRecordCodeSection;
 
-  TempImageRecordCodeSection.CodeSegmentBase = FirstImageRecordCodeSection->CodeSegmentBase;
-  TempImageRecordCodeSection.CodeSegmentSize = FirstImageRecordCodeSection->CodeSegmentSize;
+  CopyMem (&TempImageRecordCodeSection,
+           FirstImageRecordCodeSection,
+           sizeof (IMAGE_PROPERTIES_RECORD_CODE_SECTION));
 
-  FirstImageRecordCodeSection->CodeSegmentBase = SecondImageRecordCodeSection->CodeSegmentBase;
-  FirstImageRecordCodeSection->CodeSegmentSize = SecondImageRecordCodeSection->CodeSegmentSize;
+  CopyMem (FirstImageRecordCodeSection,
+           SecondImageRecordCodeSection,
+           sizeof (IMAGE_PROPERTIES_RECORD_CODE_SECTION));
 
-  SecondImageRecordCodeSection->CodeSegmentBase = TempImageRecordCodeSection.CodeSegmentBase;
-  SecondImageRecordCodeSection->CodeSegmentSize = TempImageRecordCodeSection.CodeSegmentSize;
+  CopyMem (SecondImageRecordCodeSection,
+           &TempImageRecordCodeSection,
+           sizeof (IMAGE_PROPERTIES_RECORD_CODE_SECTION));
 }
 
 /**
@@ -1385,6 +1391,7 @@ InsertImageRecord (
 
       ImageRecordCodeSection->CodeSegmentBase = (UINTN)ImageAddress + Section[Index].VirtualAddress;
       ImageRecordCodeSection->CodeSegmentSize = Section[Index].SizeOfRawData;
+      ImageRecordCodeSection->Characteristics = Section[Index].Characteristics;
 
       DEBUG ((DEBUG_VERBOSE, "ImageCode: 0x%016lx - 0x%016lx\n", ImageRecordCodeSection->CodeSegmentBase, ImageRecordCodeSection->CodeSegmentSize));
 
