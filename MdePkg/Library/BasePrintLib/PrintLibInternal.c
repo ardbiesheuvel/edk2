@@ -547,14 +547,30 @@ STATIC
 UINTN
 GetNextCharacter (
   CONST CHAR8  **String,
-  INTN         BytesPerInputCharacter
+  INTN         BytesPerInputCharacter,
+  UINTN        BytesPerOutputCharacter
   )
 {
   UINTN  Character;
 
   Character = (*String)[0];
-  if ((BytesPerInputCharacter & 3) == 2) {
-    Character |= (UINTN)(*String)[1] << 8;
+  switch (BytesPerInputCharacter & 3) {
+  case 2:
+    // wide characters can be passed on without conversion
+    if (BytesPerOutputCharacter == 2) {
+      Character |= (UINTN)(*String)[1] << 8;
+      break;
+    }
+  case 1:
+    // ASCII characters can be reinterpreted transparently
+    if (Character <= MAX_INT8) {
+      break;
+    }
+
+    // If input and output width differ, conversion is needed
+    if ((BytesPerInputCharacter & 3) != BytesPerOutputCharacter) {
+      Character = (UINTN)L'?';
+    }
   }
 
   *String += BytesPerInputCharacter;
@@ -1261,7 +1277,7 @@ BasePrintLibSPrintMarker (
     // Copy the string into the output buffer performing the required type conversions
     //
     while (Index < Count) {
-      ArgumentCharacter = GetNextCharacter (&ArgumentString, BytesPerArgumentCharacter);
+      ArgumentCharacter = GetNextCharacter (&ArgumentString, BytesPerArgumentCharacter, BytesPerOutputCharacter);
 
       if (ArgumentCharacter == 0) {
         break;
