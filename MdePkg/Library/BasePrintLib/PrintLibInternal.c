@@ -509,8 +509,7 @@ BasePrintLibConvertValueToStringS (
 }
 
 /**
-  Helper to count the number of characters in a string that might either be
-  ASCII or UTF-16 Unicode.
+  Helper to count the number of characters in a string.
 
   @param[in]  String              The input string
   @param[in]  BytesPerCharacter   The unit size in bytes of the encoding
