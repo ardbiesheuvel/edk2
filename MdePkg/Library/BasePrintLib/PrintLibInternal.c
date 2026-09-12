@@ -535,9 +535,7 @@ CountCharacters (
 }
 
 /**
-  Helper to retrieve the next character from a string that might either be
-  ASCII or UTF-16 Unicode. Advances the by-ref pointer past the returned
-  character.
+  Helper to retrieve the next character from a string.
 
   @param[in,out]  String                   The input string pointer
   @param[in]      BytesPerInputCharacter   The unit size in bytes of the encoding.
