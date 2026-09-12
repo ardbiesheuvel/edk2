@@ -540,8 +540,9 @@ CountCharacters (
   ASCII or UTF-16 Unicode. Advances the by-ref pointer past the returned
   character.
 
-  @param[in,out]  String              The input string pointer
-  @param[in]      BytesPerCharacter   The unit size in bytes of the encoding
+  @param[in,out]  String                   The input string pointer
+  @param[in]      BytesPerInputCharacter   The unit size in bytes of the encoding.
+                                           May be negative.
 
   @return         The next character in the string
 **/
@@ -549,17 +550,17 @@ STATIC
 UINTN
 GetNextCharacter (
   CONST CHAR8  **String,
-  INTN         BytesPerCharacter
+  INTN         BytesPerInputCharacter
   )
 {
   UINTN  Character;
 
   Character = (*String)[0];
-  if ((BytesPerCharacter != 1) && (BytesPerCharacter != -1)) {
+  if ((BytesPerInputCharacter & 3) == 2) {
     Character |= (UINTN)(*String)[1] << 8;
   }
 
-  *String += BytesPerCharacter;
+  *String += BytesPerInputCharacter;
 
   return Character;
 }
