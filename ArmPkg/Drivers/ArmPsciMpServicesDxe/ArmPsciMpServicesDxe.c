@@ -35,8 +35,8 @@
 
 #include <Library/ArmLib.h>
 #include <Library/ArmMmuLib.h>
+#include <Library/ArmMonitorLib.h>
 #include <Library/ArmPlatformLib.h>
-#include <Library/ArmSmcLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/CacheMaintenanceLib.h>
 #include <Library/CpuExceptionHandlerLib.h>
@@ -85,8 +85,8 @@ DispatchCpu (
   IN UINTN  ProcessorIndex
   )
 {
-  ARM_SMC_ARGS  Args;
-  EFI_STATUS    Status;
+  ARM_MONITOR_ARGS  Args;
+  EFI_STATUS        Status;
 
   Status = EFI_SUCCESS;
 
@@ -102,7 +102,7 @@ DispatchCpu (
   Args.Arg1 = gProcessorIDs[ProcessorIndex];
   Args.Arg2 = (UINTN)ApEntryPoint;
 
-  ArmCallSmc (&Args);
+  ArmMonitorCall (&Args);
 
   if (Args.Arg0 == ARM_SMC_PSCI_RET_ALREADY_ON) {
     Status = EFI_NOT_READY;
@@ -1498,10 +1498,10 @@ ApExceptionHandler (
   IN CONST EFI_SYSTEM_CONTEXT  SystemContext
   )
 {
-  ARM_SMC_ARGS  Args;
-  UINT64        Mpidr;
-  UINTN         Index;
-  UINTN         ProcessorIndex;
+  ARM_MONITOR_ARGS  Args;
+  UINT64            Mpidr;
+  UINTN             Index;
+  UINTN             ProcessorIndex;
 
   Mpidr = GET_MPIDR_AFFINITY_BITS (ArmReadMpidr ());
 
@@ -1523,7 +1523,7 @@ ApExceptionHandler (
   }
 
   Args.Arg0 = ARM_SMC_ID_PSCI_CPU_OFF;
-  ArmCallSmc (&Args);
+  ArmMonitorCall (&Args);
 
   /* Should never be reached */
   ASSERT (FALSE);
@@ -1539,7 +1539,7 @@ ApProcedure (
   VOID
   )
 {
-  ARM_SMC_ARGS      Args;
+  ARM_MONITOR_ARGS  Args;
   EFI_AP_PROCEDURE  UserApProcedure;
   VOID              *UserApParameter;
   UINTN             ProcessorIndex;
@@ -1566,7 +1566,7 @@ ApProcedure (
 
   /* Since we're finished with this AP, turn it off */
   Args.Arg0 = ARM_SMC_ID_PSCI_CPU_OFF;
-  ArmCallSmc (&Args);
+  ArmMonitorCall (&Args);
 
   /* Should never be reached */
   ASSERT (FALSE);
