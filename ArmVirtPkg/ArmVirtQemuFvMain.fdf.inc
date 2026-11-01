@@ -90,6 +90,8 @@ READ_LOCK_STATUS   = TRUE
   #
 !if $(MP_SERVICES_ENABLE) == TRUE
   INF ArmPkg/Drivers/ArmPsciMpServicesDxe/ArmPsciMpServicesDxe.inf
+  INF MdeModulePkg/Application/MpServicesTest/MpServicesTest.inf
+  INF MdeModulePkg/Universal/FvSimpleFileSystemDxe/FvSimpleFileSystemDxe.inf
 !endif
 
   #

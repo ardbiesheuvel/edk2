@@ -370,6 +370,8 @@
   #
 !if $(MP_SERVICES_ENABLE) == TRUE
   ArmPkg/Drivers/ArmPsciMpServicesDxe/ArmPsciMpServicesDxe.inf
+  MdeModulePkg/Application/MpServicesTest/MpServicesTest.inf
+  MdeModulePkg/Universal/FvSimpleFileSystemDxe/FvSimpleFileSystemDxe.inf
 !endif
 
   MdeModulePkg/Application/BootManagerMenuApp/BootManagerMenuApp.inf
